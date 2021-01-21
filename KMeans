@@ -1,0 +1,33 @@
+import pandas as pd
+import numpy as np
+from gensim.models import Word2Vec
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+word_vectors = Word2Vec.load("/Users/evanhu/Documents/word2vec.model").wv
+
+##implement Kmeans model with specified parameters
+model = KMeans(n_clusters=2, max_iter=1000, random_state=True, n_init=50).fit(X=word_vectors.vectors.astype('double'))
+positive_cluster_index =0
+
+##determine centers of positive and negative clusteres
+positive_cluster_center = model.cluster_centers_[positive_cluster_index]
+negative_cluster_center = model.cluster_centers_[1-positive_cluster_index]
+
+words = pd.DataFrame(word_vectors.vocab.keys())
+words.columns = ['words']
+words['vectors'] = words.words.apply(lambda x: word_vectors[f'{x}'])
+words['cluster'] = words.vectors.apply(lambda x: model.predict([np.array(x)]))
+words.cluster = words.cluster.apply(lambda x: x[0])
+
+words['cluster_value'] = [1 if i==positive_cluster_index else -1 for i in words.cluster]
+
+##weigh how positive and negative words are by calculating distance to the centroids of respective clusters
+words['closeness_score'] = words.apply(lambda x: 1/(model.transform([x.vectors]).min())/100, axis=1)
+
+##calculate overall sentiment coefficient
+words['sentiment_coefficient'] = words.closeness_score * words.cluster_value
+
+words[['words', 'sentiment_coefficient']].to_csv('/Users/evanhu/Documents/vaccine_sentiment.csv', index=False)
+
+plt.scatter(word_vectors.vectors[:,0], word_vectors.vectors[:,1], c=model.labels_, cmap='rainbow')
+plt.scatter(model.cluster_centers_[:,0] ,model.cluster_centers_[:,1], color='black')
